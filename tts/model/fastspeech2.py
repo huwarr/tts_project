@@ -1,7 +1,18 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 from tts.model.fastspeech_utilities import Encoder, Decoder
+
+def create_alignment(base_mat, duration_predictor_output):
+    N, L = duration_predictor_output.shape
+    for i in range(N):
+        count = 0
+        for j in range(L):
+            for k in range(duration_predictor_output[i][j]):
+                base_mat[i][count+k][j] = 1
+            count = count + duration_predictor_output[i][j]
+    return base_mat
 
 
 class PredictorBlock(nn.Module):
@@ -41,9 +52,6 @@ class PredictorBlock(nn.Module):
         x = self.ln_2(x.transpose(-1, -2))
         x = self.fc(x)
         x = x.squeeze()
-        if not self.training:
-            # ????
-            x = x.unsqueeze(0)
         return x
 
 
@@ -81,7 +89,7 @@ class VarianceAdaptor(nn.Module):
             duration = (duration * alpha + 0.5).int()
             x = self.LR(x, duration)
             pos = torch.stack(
-                [torch.Tensor([i+1 for i in range(output.size(1))])]
+                [torch.Tensor([i+1 for i in range(x.size(1))])]
             ).long().to(x.device)
 
         pitch = self.pitch_predictor(x)
@@ -102,7 +110,6 @@ class FastSpeech2(nn.Module):
     def forward(self, src_seq, src_pos, mel_pos=None, mel_max_length=None, length_target=None, alpha=1.0):
         x, non_pad_mask = self.encoder(src_seq, src_pos)
 
-        x, mel_pos, duration, pitch, energy = self.variance_adaptor(x, alpha, target,  length_target, mel_max_length)
+        x, mel_pos, duration, pitch, energy = self.variance_adaptor(x, alpha, length_target, mel_max_length)
         x = self.decoder(x, mel_pos)
-        # don't forget to take log(duration) when estimating MSE
         return x, duration, pitch, energy
