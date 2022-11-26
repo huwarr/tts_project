@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import pyworld
 import torchaudio
-from torchaudio.transforms import InverseMelScale
+from torchaudio.transforms import Spectrogram, MelScale
 
 from text import text_to_sequence
 
@@ -24,12 +24,11 @@ def get_data_to_buffer(train_config, melspec_config):
     text = process_text(train_config.data_path)
     names = sorted(list(map(lambda x: x[2:-4], os.listdir(train_config.wavs_path))))
 
+    wav_to_spec = Spectrogram()
+    spec_to_mels = MelScale(n_mels=melspec_config.num_mels)
+
     start = time.perf_counter()
     for i in tqdm(range(len(text))):
-
-        mel_gt_name = os.path.join(
-            train_config.mel_ground_truth, "ljspeech-mel-%05d.npy" % (i+1))
-        mel_gt_target = np.load(mel_gt_name)
         duration = np.load(os.path.join(
             train_config.alignment_path, str(i)+".npy"))
         
@@ -38,9 +37,9 @@ def get_data_to_buffer(train_config, melspec_config):
         pitch, t = pyworld.dio(wav, sr)              # raw pitch extractor
         pitch = pyworld.stonemask(wav, pitch, t, sr) # pitch contour
 
-        inverse_mel_spec = InverseMelScale(n_stft=400, n_mels=melspec_config.num_mels, sample_rate=sr)
-        spectrogram = inverse_mel_spec(mel_gt_target)
-        energy = torch.norm(spectrogram, p='fro', dim=1)
+        spec = wav_to_spec(wav)
+        energy = torch.norm(spec, p='fro', dim=1)
+        mel_spec = spec_to_mels(spec)
 
         character = text[i][0:len(text[i])-1]
         character = np.array(
@@ -56,7 +55,7 @@ def get_data_to_buffer(train_config, melspec_config):
                 "duration": duration,
                 "pitch": pitch,
                 "energy": energy,
-                "mel_target": mel_gt_target
+                "mel_target": mel_spec
             }
         )
 

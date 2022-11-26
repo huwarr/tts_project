@@ -44,7 +44,7 @@ training_loader = DataLoader(
 )
 
 # training essentials
-model = FastSpeech2(model_config)
+model = FastSpeech2(model_config, mel_config)
 model = model.to(train_config.device)
 
 fastspeech_loss = FastSpeechLoss()

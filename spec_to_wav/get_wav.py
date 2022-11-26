@@ -44,7 +44,8 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
     WaveGlow = WaveGlow.to(train_config.device)
 
     model_config = FastSpeechConfig()
-    model = FastSpeech2(model_config)
+    mel_config = MelSpectrogramConfig()
+    model = FastSpeech2(model_config, mel_config)
     model.load_state_dict(torch.load(checkpoint_path, map_location='cuda:0')['model'])
     model = model.eval()
 

@@ -14,6 +14,15 @@ def create_alignment(base_mat, duration_predictor_output):
             count = count + duration_predictor_output[i][j]
     return base_mat
 
+def get_mask_from_lengths(lengths, max_len=None):
+    if max_len == None:
+        max_len = torch.max(lengths).item()
+
+    ids = torch.arange(0, max_len, 1, device=lengths.device)
+    mask = (ids < lengths.unsqueeze(1)).bool()
+
+    return mask
+
 
 class PredictorBlock(nn.Module):
     def __init__(self, model_config):
@@ -52,6 +61,8 @@ class PredictorBlock(nn.Module):
         x = self.ln_2(x.transpose(-1, -2))
         x = self.fc(x)
         x = x.squeeze()
+        if not self.training:
+            x = x.unsqueeze(0)
         return x
 
 
@@ -82,7 +93,7 @@ class VarianceAdaptor(nn.Module):
                 output, (0, 0, 0, mel_max_length-output.size(1), 0, 0))
         return output
 
-    def forward(self, x, duration_alpha=1.0, pitch_alpha=1.0, enrgy_alpha=1.0, length_target=None, mel_max_length=None):
+    def forward(self, x, duration_alpha=1.0, pitch_alpha=1.0, energy_alpha=1.0, length_target=None, mel_max_length=None):
         log_duration = self.duration_predictor(x)
 
         if length_target is not None:
@@ -96,12 +107,12 @@ class VarianceAdaptor(nn.Module):
             ).long().to(x.device)
 
         pitch = self.pitch_predictor(x) * pitch_alpha
-        buckets = torch.linspace(torch.log(pitch.min()), torch.log(pitch.max()), 256)
-        pitch_quantized = torch.bucketize(torch.log(pitch), buckets)
+        buckets = torch.linspace(torch.log(pitch.min() + 1), torch.log(pitch.max()), 256)
+        pitch_quantized = torch.bucketize(torch.log(pitch), buckets[-1])
         
-        energy = self.energy_predictor(x) * enrgy_alpha
+        energy = self.energy_predictor(x) * energy_alpha
         buckets = torch.linspace(energy.min(), energy.max(), 256)
-        energy_quantized = torch.bucketize(torch.log(energy), buckets)
+        energy_quantized = torch.bucketize(torch.log(energy), buckets[:-1])
 
 
         out = self.pitch_embed(pitch_quantized) + self.energy_embed(energy_quantized) + x
@@ -109,7 +120,7 @@ class VarianceAdaptor(nn.Module):
 
 
 class FastSpeech2(nn.Module):
-    def __init__(self, model_config):
+    def __init__(self, model_config, mel_config):
         super().__init__()
 
         self.encoder = Encoder(model_config)
@@ -117,9 +128,25 @@ class FastSpeech2(nn.Module):
 
         self.variance_adaptor = VarianceAdaptor(model_config)
     
-    def forward(self, src_seq, src_pos, mel_pos=None, length_target=None, mel_max_length=None, duration_alpha=1.0, pitch_alpha=1.0, enrgy_alpha=1.0,):
-        x, _ = self.encoder(src_seq, src_pos)
+        self.mel_linear = nn.Linear(model_config.decoder_dim, mel_config.num_mels)
 
-        x, mel_pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, enrgy_alpha, length_target, mel_max_length)
-        x = self.decoder(x, mel_pos)
-        return x, log_duration, pitch, energy
+    def mask_tensor(self, mel_output, position, mel_max_length):
+        lengths = torch.max(position, -1)[0]
+        mask = ~get_mask_from_lengths(lengths, max_len=mel_max_length)
+        mask = mask.unsqueeze(-1).expand(-1, -1, mel_output.size(-1))
+        return mel_output.masked_fill(mask, 0.)
+
+    def forward(self, src_seq, src_pos, mel_pos=None, length_target=None, mel_max_length=None, duration_alpha=1.0, pitch_alpha=1.0, energy_alpha=1.0):
+        x, non_pad_mask = self.encoder(src_seq, src_pos)
+        
+        if self.training:
+            x, mel_pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, energy_alpha, length_target, mel_max_length)
+            x = self.decoder(x, mel_pos)
+            x = self.mask_tensor(x, mel_pos, mel_max_length)
+            x = self.mel_linear(x)
+            return x, log_duration, pitch, energy
+        else:
+            x, mel_pos = self.length_regulator(x, duration_alpha, pitch_alpha, energy_alpha)
+            x = self.decoder(x, mel_pos)
+            x = self.mel_linear(x)
+            return x

@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+import numpy as np
 
 
 def get_non_pad_mask(seq, model_config):
@@ -100,18 +101,22 @@ class MultiHeadAttention(nn.Module):
         nn.init.normal_(self.w_vs.weight, mean=0,
                         std=np.sqrt(2.0 / (self.d_model + self.d_v))) 
         
-    def forward(self, q, k, v, mask=None):
+    def forward(self,x, mask=None):
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
+
+        sz_b, len_x, _ = x.size()
+
+        residual = x
+
+        x = self.layer_norm(x)
+
+        q = self.w_qs(x).view(sz_b, len_x, n_head, d_k)
+        k = self.w_ks(x).view(sz_b, len_x, n_head, d_k)
+        v = self.w_vs(x).view(sz_b, len_x, n_head, d_v)
 
         sz_b, len_q, _ = q.size()
         sz_b, len_k, _ = k.size()
         sz_b, len_v, _ = v.size()
-
-        residual = q
-
-        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
-        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
-        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
 
         q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_q, d_k)  # (n*b) x lq x dk
         k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_k, d_k)  # (n*b) x lk x dk
@@ -125,7 +130,7 @@ class MultiHeadAttention(nn.Module):
         output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
 
         output = self.dropout(self.fc(output))
-        output = self.layer_norm(output + residual)
+        output = output + residual
 
         return output, attn
 
@@ -146,11 +151,12 @@ class PositionwiseFeedForward(nn.Module):
 
     def forward(self, x):
         residual = x
-        output = x.transpose(1, 2)
+        output = self.layer_norm(x)
+        output = output.transpose(1, 2)
         output = self.w_2(F.relu(self.w_1(output)))
         output = output.transpose(1, 2)
         output = self.dropout(output)
-        output = self.layer_norm(output + residual)
+        output = output + residual
 
         return output
 
@@ -173,8 +179,7 @@ class FFTBlock(torch.nn.Module):
             model_config, d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
-        enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)
+        enc_output, enc_slf_attn = self.slf_attn(enc_input, mask=slf_attn_mask)
         
         if non_pad_mask is not None:
             enc_output *= non_pad_mask
