@@ -98,7 +98,9 @@ class VarianceAdaptor(nn.Module):
 
         if length_target is not None:
             x = self.LR(x, length_target, mel_max_length)
-            pos = torch.log(duration)
+            pos = torch.exp(log_duration)
+            if mel_max_length:
+                pos = F.pad(pos, (0, mel_max_length-pos.size(1)))
         else:
             duration = (torch.exp(log_duration) * duration_alpha + 0.5).int()
             x = self.LR(x, duration, mel_max_length)
@@ -107,12 +109,12 @@ class VarianceAdaptor(nn.Module):
             ).long().to(x.device)
 
         pitch = self.pitch_predictor(x) * pitch_alpha
-        buckets = torch.linspace(torch.log(pitch.min() + 1), torch.log(pitch.max()), 256)
-        pitch_quantized = torch.bucketize(torch.log(pitch), buckets[-1])
+        buckets = torch.linspace(torch.log(pitch.min() + 1).item(), torch.log(pitch.max() + 1).item(), 256).to(x.device)
+        pitch_quantized = torch.bucketize(torch.log(pitch), buckets[:-1]).to(x.device)
         
         energy = self.energy_predictor(x) * energy_alpha
-        buckets = torch.linspace(energy.min(), energy.max(), 256)
-        energy_quantized = torch.bucketize(torch.log(energy), buckets[:-1])
+        buckets = torch.linspace(energy.min().item(), energy.max().item(), 256).to(x.device)
+        energy_quantized = torch.bucketize(torch.log(energy), buckets[:-1]).to(x.device)
 
 
         out = self.pitch_embed(pitch_quantized) + self.energy_embed(energy_quantized) + x

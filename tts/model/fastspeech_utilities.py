@@ -20,24 +20,6 @@ def get_attn_key_pad_mask(seq_k, seq_q, model_config):
     return padding_mask
 
 
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, embed_dim, max_len):
-        super().__init__()
-        
-        pos_s = torch.arange(max_len)
-        i_s = torch.arange(embed_dim)
-
-        sin_s = torch.sin(pos_s.unsqueeze(1) / 10000 ** (i_s / embed_dim)) * (i_s % 2 == 0)
-        cos_s = torch.cos(pos_s.unsqueeze(1) / 10000 ** ((i_s - 1) / embed_dim)) * (i_s % 2 != 0)
-
-        pe = (sin_s + cos_s).unsqueeze(0)
-        self.register_buffer('pe', pe, persistent=False)
-
-    def forward(self, x):
-        return self.pe[:, :x.shape[1], :]
-
-
 class ScaledDotProductAttention(nn.Module):
     ''' Scaled Dot-Product Attention '''
 
@@ -114,20 +96,16 @@ class MultiHeadAttention(nn.Module):
         k = self.w_ks(x).view(sz_b, len_x, n_head, d_k)
         v = self.w_vs(x).view(sz_b, len_x, n_head, d_v)
 
-        sz_b, len_q, _ = q.size()
-        sz_b, len_k, _ = k.size()
-        sz_b, len_v, _ = v.size()
-
-        q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_q, d_k)  # (n*b) x lq x dk
-        k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_k, d_k)  # (n*b) x lk x dk
-        v = v.permute(2, 0, 1, 3).contiguous().view(-1, len_v, d_v)  # (n*b) x lv x dv
+        q = q.permute(2, 0, 1, 3).contiguous().view(-1, len_x, d_k)  # (n*b) x lq x dk
+        k = k.permute(2, 0, 1, 3).contiguous().view(-1, len_x, d_k)  # (n*b) x lk x dk
+        v = v.permute(2, 0, 1, 3).contiguous().view(-1, len_x, d_v)  # (n*b) x lv x dv
         
         if mask is not None:
             mask = mask.repeat(n_head, 1, 1)  # (n*b) x .. x ..
         output, attn = self.attention(q, k, v, mask=mask)
 
-        output = output.view(n_head, sz_b, len_q, d_v)
-        output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_q, -1)  # b x lq x (n*dv)
+        output = output.view(n_head, sz_b, len_x, d_v)
+        output = output.permute(1, 2, 0, 3).contiguous().view(sz_b, len_x, -1)  # b x lq x (n*dv)
 
         output = self.dropout(self.fc(output))
         output = output + residual
@@ -206,9 +184,10 @@ class Encoder(nn.Module):
             padding_idx=model_config.PAD
         )
 
-        self.position_enc = PositionalEncoding(
+        self.position_enc = nn.Embedding(
+            n_position,
             model_config.encoder_dim,
-            n_position
+            padding_idx=model_config.PAD
         )
 
         self.layer_stack = nn.ModuleList([FFTBlock(
@@ -221,16 +200,18 @@ class Encoder(nn.Module):
             dropout=model_config.dropout
         ) for _ in range(n_layers)])
 
+        self.model_config = model_config
+
     def forward(self, src_seq, src_pos, return_attns=False):
 
         enc_slf_attn_list = []
 
         # -- Prepare masks
-        slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq)
-        non_pad_mask = get_non_pad_mask(src_seq)
+        slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq, model_config=self.model_config)
+        non_pad_mask = get_non_pad_mask(src_seq, model_config=self.model_config)
         
         # -- Forward
-        enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
+        enc_output = self.src_word_emb(src_seq.long()) + self.position_enc(src_pos.long())
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(
@@ -252,12 +233,14 @@ class Decoder(nn.Module):
         n_position = len_max_seq + 1
         n_layers = model_config.decoder_n_layer
 
-        self.position_enc = PositionalEncoding(
+        self.position_enc = nn.Embedding(
+            n_position,
             model_config.encoder_dim,
-            n_position
+            padding_idx=model_config.PAD
         )
 
         self.layer_stack = nn.ModuleList([FFTBlock(
+            model_config,
             model_config.encoder_dim,
             model_config.encoder_conv1d_filter_size,
             model_config.encoder_head,
@@ -266,16 +249,18 @@ class Decoder(nn.Module):
             dropout=model_config.dropout
         ) for _ in range(n_layers)])
 
+        self.model_config = model_config
+
     def forward(self, enc_seq, enc_pos, return_attns=False):
 
         dec_slf_attn_list = []
 
         # -- Prepare masks
-        slf_attn_mask = get_attn_key_pad_mask(seq_k=enc_pos, seq_q=enc_pos)
-        non_pad_mask = get_non_pad_mask(enc_pos)
+        slf_attn_mask = get_attn_key_pad_mask(seq_k=enc_pos, seq_q=enc_pos, model_config=self.model_config)
+        non_pad_mask = get_non_pad_mask(enc_pos, model_config=self.model_config)
 
         # -- Forward
-        dec_output = enc_seq + self.position_enc(enc_pos)
+        dec_output = enc_seq + self.position_enc(enc_pos.long())
 
         for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn = dec_layer(
