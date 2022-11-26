@@ -14,6 +14,7 @@ from tts.collate_fn.collate import collate_fn
 from tts.model.fastspeech2 import FastSpeech2
 from tts.loss.fastspeech_loss import FastSpeechLoss
 from tts.logger.wandb_logger import WanDBWriter
+from spec_to_wav.get_wav import run_full_synthesis
 
 
 # fix seed for reproducibility
@@ -30,7 +31,7 @@ train_config = TrainConfig()
 
 
 # define dataloader
-buffer = get_data_to_buffer(train_config)
+buffer = get_data_to_buffer(train_config, mel_config)
 dataset = BufferDataset(buffer)
 
 training_loader = DataLoader(
@@ -89,7 +90,7 @@ for epoch in range(train_config.epochs):
             max_mel_len = db["mel_max_len"]
 
             # Forward
-            mel_output, duration_output, pitch_output, energy_output = model(
+            mel_output, log_duration_output, pitch_output, energy_output = model(
                 character,
                 src_pos,
                 mel_pos=mel_pos,
@@ -100,11 +101,11 @@ for epoch in range(train_config.epochs):
             # Cal Loss
             mel_loss, duration_loss, pitch_loss, energy_loss = fastspeech_loss(
                 mel_output,
-                duration_output,
+                log_duration_output,
                 pitch_output,
                 energy_output,
                 mel_target,
-                duration,
+                torch.log(duration + 1),
                 pitch,
                 energy
             )
@@ -139,6 +140,8 @@ for epoch in range(train_config.epochs):
                 torch.save({'model': model.state_dict(), 'optimizer': optimizer.state_dict(
                 )}, os.path.join(train_config.checkpoint_path, 'checkpoint_%d.pth.tar' % current_step))
                 print("save model at step %d ..." % current_step)
+
+                run_full_synthesis(checkpoint_path='checkpoint_%d.pth.tar' % current_step, logger=logger)
 
 
 # save checkpoint of the trained model

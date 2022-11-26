@@ -62,6 +62,9 @@ class VarianceAdaptor(nn.Module):
         self.duration_predictor = PredictorBlock(model_config)
         self.pitch_predictor = PredictorBlock(model_config)
         self.energy_predictor = PredictorBlock(model_config)
+
+        self.pitch_embed = nn.Embedding(256, model_config.encoder_dim)
+        self.energy_embed = nn.Embedding(256, model_config.encoder_dim)
     
     def LR(self, x, duration_predictor_output, mel_max_length=None):
         expand_max_len = torch.max(
@@ -79,23 +82,30 @@ class VarianceAdaptor(nn.Module):
                 output, (0, 0, 0, mel_max_length-output.size(1), 0, 0))
         return output
 
-    def forward(self, x, alpha=1.0, target=None, mel_max_length=None):
-        duration = self.duration_predictor(x)
+    def forward(self, x, duration_alpha=1.0, pitch_alpha=1.0, enrgy_alpha=1.0, length_target=None, mel_max_length=None):
+        log_duration = self.duration_predictor(x)
 
-        if target is not None:
-            x = self.LR(x, target, mel_max_length)
-            pos = duration
+        if length_target is not None:
+            x = self.LR(x, length_target, mel_max_length)
+            pos = torch.log(duration)
         else:
-            duration = (duration * alpha + 0.5).int()
-            x = self.LR(x, duration)
+            duration = (torch.exp(log_duration) * duration_alpha + 0.5).int()
+            x = self.LR(x, duration, mel_max_length)
             pos = torch.stack(
                 [torch.Tensor([i+1 for i in range(x.size(1))])]
             ).long().to(x.device)
 
-        pitch = self.pitch_predictor(x)
-        energy = self.energy_predictor(x)
-        out = pitch + energy + x
-        return out, pos, duration, pitch, energy
+        pitch = self.pitch_predictor(x) * pitch_alpha
+        buckets = torch.linspace(torch.log(pitch.min()), torch.log(pitch.max()), 256)
+        pitch_quantized = torch.bucketize(torch.log(pitch), buckets)
+        
+        energy = self.energy_predictor(x) * enrgy_alpha
+        buckets = torch.linspace(energy.min(), energy.max(), 256)
+        energy_quantized = torch.bucketize(torch.log(energy), buckets)
+
+
+        out = self.pitch_embed(pitch_quantized) + self.energy_embed(energy_quantized) + x
+        return out, pos, log_duration, pitch, energy
 
 
 class FastSpeech2(nn.Module):
@@ -107,9 +117,9 @@ class FastSpeech2(nn.Module):
 
         self.variance_adaptor = VarianceAdaptor(model_config)
     
-    def forward(self, src_seq, src_pos, mel_pos=None, mel_max_length=None, length_target=None, alpha=1.0):
-        x, non_pad_mask = self.encoder(src_seq, src_pos)
+    def forward(self, src_seq, src_pos, mel_pos=None, length_target=None, mel_max_length=None, duration_alpha=1.0, pitch_alpha=1.0, enrgy_alpha=1.0,):
+        x, _ = self.encoder(src_seq, src_pos)
 
-        x, mel_pos, duration, pitch, energy = self.variance_adaptor(x, alpha, length_target, mel_max_length)
+        x, mel_pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, enrgy_alpha, length_target, mel_max_length)
         x = self.decoder(x, mel_pos)
-        return x, duration, pitch, energy
+        return x, log_duration, pitch, energy

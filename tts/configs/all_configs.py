@@ -45,6 +45,7 @@ class TrainConfig:
     mel_ground_truth = "./mels"
     alignment_path = "./alignments"
     data_path = './data/train.txt'
+    wavs_path = './data/LJSpeech-1.1/wavs'
     
     wandb_project = 'fastspeech_2'
     

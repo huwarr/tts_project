@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 def get_non_pad_mask(seq, model_config):
@@ -16,6 +17,24 @@ def get_attn_key_pad_mask(seq_k, seq_q, model_config):
         1).expand(-1, len_q, -1)  # b x lq x lk
 
     return padding_mask
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, embed_dim, max_len):
+        super().__init__()
+        
+        pos_s = torch.arange(max_len)
+        i_s = torch.arange(embed_dim)
+
+        sin_s = torch.sin(pos_s.unsqueeze(1) / 10000 ** (i_s / embed_dim)) * (i_s % 2 == 0)
+        cos_s = torch.cos(pos_s.unsqueeze(1) / 10000 ** ((i_s - 1) / embed_dim)) * (i_s % 2 != 0)
+
+        pe = (sin_s + cos_s).unsqueeze(0)
+        self.register_buffer('pe', pe, persistent=False)
+
+    def forward(self, x):
+        return self.pe[:, :x.shape[1], :]
 
 
 class ScaledDotProductAttention(nn.Module):
@@ -112,13 +131,10 @@ class MultiHeadAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
 
-    def __init__(self, d_in, d_hid, dropout=0.1):
+    def __init__(self, model_config, d_in, d_hid, dropout=0.1):
         super().__init__()
 
-        # Use Conv1D
-        # position-wise
         self.w_1 = nn.Conv1d(
             d_in, d_hid, kernel_size=model_config.fft_conv1d_kernel[0], padding=model_config.fft_conv1d_padding[0])
         # position-wise
@@ -143,6 +159,7 @@ class FFTBlock(torch.nn.Module):
     """FFT Block"""
 
     def __init__(self,
+                 model_config,
                  d_model,
                  d_inner,
                  n_head,
@@ -153,7 +170,7 @@ class FFTBlock(torch.nn.Module):
         self.slf_attn = MultiHeadAttention(
             n_head, d_model, d_k, d_v, dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(
-            d_model, d_inner, dropout=dropout)
+            model_config, d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
         enc_output, enc_slf_attn = self.slf_attn(
@@ -184,13 +201,13 @@ class Encoder(nn.Module):
             padding_idx=model_config.PAD
         )
 
-        self.position_enc = nn.Embedding(
-            n_position,
+        self.position_enc = PositionalEncoding(
             model_config.encoder_dim,
-            padding_idx=model_config.PAD
+            n_position
         )
 
         self.layer_stack = nn.ModuleList([FFTBlock(
+            model_config,
             model_config.encoder_dim,
             model_config.encoder_conv1d_filter_size,
             model_config.encoder_head,
@@ -230,10 +247,9 @@ class Decoder(nn.Module):
         n_position = len_max_seq + 1
         n_layers = model_config.decoder_n_layer
 
-        self.position_enc = nn.Embedding(
-            n_position,
+        self.position_enc = PositionalEncoding(
             model_config.encoder_dim,
-            padding_idx=model_config.PAD,
+            n_position
         )
 
         self.layer_stack = nn.ModuleList([FFTBlock(
