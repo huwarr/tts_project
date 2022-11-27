@@ -35,11 +35,11 @@ def get_data_to_buffer(train_config, melspec_config):
         wav_path = os.path.join(train_config.wavs_path, "LJ{}.wav".format(names[i]))
         wav, sr = torchaudio.load(wav_path)
         wav = wav.squeeze().double()
-        pitch, t = pyworld.dio(wav.numpy(), sr, frame_period=11.6)    # raw pitch extractor
+        pitch, t = pyworld.dio(wav.numpy(), sr, frame_period=256 / 22050 *1000)    # raw pitch extractor
         pitch = pyworld.stonemask(wav.numpy(), pitch, t, sr)   # pitch contour
 
         spec = wav_to_spec(wav)
-        energy = torch.norm(spec, p='fro', dim=1)
+        energy = torch.norm(spec, p='fro', dim=0)
         mel_spec = spec_to_mels(spec.float())
         mel_spec = mel_spec.transpose(-1, -2)
 

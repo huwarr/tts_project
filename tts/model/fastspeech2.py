@@ -110,7 +110,7 @@ class VarianceAdaptor(nn.Module):
 
         pitch = self.pitch_predictor(x) * pitch_alpha
         buckets = torch.linspace(torch.log(pitch.min() + 1).item(), torch.log(pitch.max() + 1).item(), 256).to(x.device)
-        pitch_quantized = torch.bucketize(torch.log(pitch), buckets[:-1]).to(x.device)
+        pitch_quantized = torch.bucketize(torch.log(pitch + 1), buckets[:-1]).to(x.device)
         
         energy = self.energy_predictor(x) * energy_alpha
         buckets = torch.linspace(energy.min().item(), energy.max().item(), 256).to(x.device)
@@ -142,13 +142,13 @@ class FastSpeech2(nn.Module):
         x, non_pad_mask = self.encoder(src_seq, src_pos)
         
         if self.training:
-            x, mel_pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, energy_alpha, length_target, mel_max_length)
+            x, pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, energy_alpha, length_target, mel_max_length)
             x = self.decoder(x, mel_pos)
             x = self.mask_tensor(x, mel_pos, mel_max_length)
             x = self.mel_linear(x)
             return x, log_duration, pitch, energy
         else:
-            x, mel_pos = self.length_regulator(x, duration_alpha, pitch_alpha, energy_alpha)
+            x, mel_pos, log_duration, pitch, energy = self.variance_adaptor(x, duration_alpha, pitch_alpha, energy_alpha)
             x = self.decoder(x, mel_pos)
             x = self.mel_linear(x)
             return x

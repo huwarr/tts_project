@@ -15,7 +15,7 @@ from tts.model.fastspeech2 import FastSpeech2
 
 
 def synthesis(train_config, model, text, duration_alpha=1.0, pitch_alpha=1.0, energy_alpha=1.0):
-    text = np.array(phn)
+    text = np.array(text)
     text = np.stack([text])
     src_pos = np.array([i+1 for i in range(text.shape[1])])
     src_pos = np.stack([src_pos])
@@ -48,6 +48,7 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
     model = FastSpeech2(model_config, mel_config)
     model.load_state_dict(torch.load(checkpoint_path, map_location='cuda:0')['model'])
     model = model.eval()
+    model = model.to(train_config.device)
 
     data_list = get_data(train_config)
 

@@ -211,7 +211,7 @@ class Encoder(nn.Module):
         non_pad_mask = get_non_pad_mask(src_seq, model_config=self.model_config)
         
         # -- Forward
-        enc_output = self.src_word_emb(src_seq.long()) + self.position_enc(src_pos.long())
+        enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(
@@ -260,7 +260,7 @@ class Decoder(nn.Module):
         non_pad_mask = get_non_pad_mask(enc_pos, model_config=self.model_config)
 
         # -- Forward
-        dec_output = enc_seq + self.position_enc(enc_pos.long())
+        dec_output = enc_seq + self.position_enc(enc_pos)
 
         for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn = dec_layer(
