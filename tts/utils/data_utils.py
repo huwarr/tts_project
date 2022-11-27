@@ -42,6 +42,7 @@ def get_data_to_buffer(train_config, melspec_config):
         energy = torch.norm(spec, p='fro', dim=0)
         mel_spec = spec_to_mels(spec.float())
         mel_spec = mel_spec.transpose(-1, -2)
+        mel_spec = torch.log(torch.clamp(mel_spec, min=1e-5))
 
         character = text[i][0:len(text[i])-1]
         character = np.array(
