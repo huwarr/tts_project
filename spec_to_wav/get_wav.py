@@ -63,7 +63,12 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             audio.tools.inv_mel_spec(
                 mel, path
             )
+            if logger is not None:
+                wav, sr = torchaudio.load(path)
+                name = f"speed={speed}_{i}" if speed != 1. else f"usual_audio_{i}"
+                logger.add_audio(name, wav.float(), sample_rate=sr)
             
+            path = f"results/speed={speed}_{i}_waveglow.wav" if speed != 1. else f"results/usual_audio_{i}_waveglow.wav"
             waveglow.inference.inference(
                 mel_cuda, WaveGlow,
                 path
@@ -71,7 +76,7 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
 
             if logger is not None:
                 wav, sr = torchaudio.load(path)
-                name = f"speed={speed}_{i}" if speed != 1. else f"usual_audio_{i}"
+                name = f"speed={speed}_{i}_waveglow" if speed != 1. else f"usual_audio_{i}_waveglow"
                 logger.add_audio(name, wav.float(), sample_rate=sr)
 
     # pitch
@@ -81,18 +86,22 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             
             os.makedirs("results", exist_ok=True)
             
+            path = f"results/pitch={pitch}_{i}.wav"
             audio.tools.inv_mel_spec(
-                mel, f"results/pitch={pitch}_{i}.wav"
+                mel, path
             )
+            if logger is not None:
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"pitch={pitch}_{i}", wav.float(), sample_rate=sr)
             
+            path = f"results/pitch={pitch}_{i}_waveglow.wav"
             waveglow.inference.inference(
                 mel_cuda, WaveGlow,
-                f"results/pitch={pitch}_{i}.wav"
+                path
             )
-
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/pitch={pitch}_{i}.wav")
-                logger.add_audio(f"pitch={pitch}_{i}", wav.float(), sample_rate=sr)
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"pitch={pitch}_{i}_waveglow", wav.float(), sample_rate=sr)
 
     # energy
     for energy in [0.8, 1.2]:
@@ -101,18 +110,22 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             
             os.makedirs("results", exist_ok=True)
             
+            path = f"results/energy={energy}_{i}.wav"
             audio.tools.inv_mel_spec(
-                mel, f"results/energy={energy}_{i}.wav"
+                mel, path
             )
+            if logger is not None:
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"energy={energy}_{i}", wav.float(), sample_rate=sr)
             
+            path = f"results/energy={energy}_{i}_waveglow.wav"
             waveglow.inference.inference(
                 mel_cuda, WaveGlow,
-                f"results/energy={energy}_{i}.wav"
+                path
             )
-
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/energy={energy}_{i}.wav")
-                logger.add_audio(f"energy={energy}_{i}", wav.float(), sample_rate=sr)
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"energy={energy}_{i}_waveglow", wav.float(), sample_rate=sr)
 
     # all together
     for alpha in [0.8, 1.2]:
@@ -121,15 +134,19 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             
             os.makedirs("results", exist_ok=True)
             
+            path = f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav"
             audio.tools.inv_mel_spec(
-                mel, f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav"
+                mel, path
             )
+            if logger is not None:
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}", wav.float(), sample_rate=sr)
             
+            path = f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}_waveglow.wav"
             waveglow.inference.inference(
                 mel_cuda, WaveGlow,
-                f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav"
+                path
             )
-
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav")
-                logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}", wav.float(), sample_rate=sr)
+                wav, sr = torchaudio.load(path)
+                logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}_waveglow", wav.float(), sample_rate=sr)

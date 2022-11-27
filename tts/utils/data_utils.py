@@ -24,8 +24,8 @@ def get_data_to_buffer(train_config, melspec_config):
     text = process_text(train_config.data_path)
     names = sorted(list(map(lambda x: x[2:-4], os.listdir(train_config.wavs_path))))
 
-    wav_to_spec = Spectrogram(n_fft=1024, hop_length=256)
-    spec_to_mels = MelScale(n_mels=melspec_config.num_mels, sample_rate=22050, n_stft=1024 // 2 + 1)
+    wav_to_spec = Spectrogram(n_fft=1024, hop_length=256, power=1)
+    spec_to_mels = MelScale(n_mels=melspec_config.num_mels, n_stft=1024 // 2 + 1, sample_rate=22050, f_min=0., f_max=8000, norm='slaney', mel_scale='slaney')
 
     start = time.perf_counter()
     for i in tqdm(range(len(text))):

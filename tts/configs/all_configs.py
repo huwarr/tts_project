@@ -54,7 +54,7 @@ class TrainConfig:
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     batch_size = 64
-    epochs = 500
+    epochs = 300
     n_warm_up_step = 500
 
     learning_rate = 1e-3
