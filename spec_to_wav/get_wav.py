@@ -70,8 +70,9 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             )
 
             if logger is not None:
-                wav, sr = torchaudio.load(path).float()
-                logger.add_audio(f"speed={speed}_{i}", wav, sample_rate=sr)
+                wav, sr = torchaudio.load(path)
+                name = f"speed={speed}_{i}" if speed != 1. else f"usual_audio_{i}"
+                logger.add_audio(name, wav.float(), sample_rate=sr)
 
     # pitch
     for pitch in [0.8, 1.2]:
@@ -90,8 +91,8 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             )
 
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/pitch={pitch}_{i}.wav").float()
-                logger.add_audio(f"pitch={pitch}_{i}", wav, sample_rate=sr)
+                wav, sr = torchaudio.load(f"results/pitch={pitch}_{i}.wav")
+                logger.add_audio(f"pitch={pitch}_{i}", wav.float(), sample_rate=sr)
 
     # energy
     for energy in [0.8, 1.2]:
@@ -110,8 +111,8 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             )
 
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/energy={energy}_{i}.wav").float()
-                logger.add_audio(f"energy={energy}_{i}", wav, sample_rate=sr)
+                wav, sr = torchaudio.load(f"results/energy={energy}_{i}.wav")
+                logger.add_audio(f"energy={energy}_{i}", wav.float(), sample_rate=sr)
 
     # all together
     for alpha in [0.8, 1.2]:
@@ -130,5 +131,5 @@ def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
             )
 
             if logger is not None:
-                wav, sr = torchaudio.load(f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav").float()
-                logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}", wav, sample_rate=sr)
+                wav, sr = torchaudio.load(f"results/speed={alpha}_pitch={alpha}_energy={alpha}_{i}.wav")
+                logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}", wav.float(), sample_rate=sr)
