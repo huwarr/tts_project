@@ -31,7 +31,7 @@ train_config = TrainConfig()
 
 
 # define dataloader
-buffer = get_data_to_buffer(train_config, mel_config)
+buffer, pitch_min, pitch_max, energy_min, energy_max = get_data_to_buffer(train_config, mel_config)
 dataset = BufferDataset(buffer)
 
 training_loader = DataLoader(
@@ -44,7 +44,7 @@ training_loader = DataLoader(
 )
 
 # training essentials
-model = FastSpeech2(model_config, mel_config)
+model = FastSpeech2(model_config, mel_config, pitch_min, pitch_max, energy_min, energy_max)
 model = model.to(train_config.device)
 model.train()
 
@@ -142,7 +142,7 @@ for epoch in range(train_config.epochs):
                 )}, os.path.join(train_config.checkpoint_path, 'checkpoint_%d.pth.tar' % current_step))
                 print("save model at step %d ..." % current_step)
 
-                run_full_synthesis(checkpoint_path=os.path.join(train_config.checkpoint_path, 'checkpoint_%d.pth.tar' % current_step), logger=logger)
+                run_full_synthesis(pitch_min, pitch_max, energy_min, energy_max, checkpoint_path=os.path.join(train_config.checkpoint_path, 'checkpoint_%d.pth.tar' % current_step), logger=logger)
 
 
 # save checkpoint of the trained model
@@ -151,5 +151,6 @@ torch.save(
     'checkpoint.pth.tar'
 )
 
+run_full_synthesis(pitch_min, pitch_max, energy_min, energy_max, checkpoint_path='checkpoint.pth.tar', logger=logger)
 
 logger.finish_wandb_run()

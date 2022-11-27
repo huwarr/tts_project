@@ -67,7 +67,7 @@ class PredictorBlock(nn.Module):
 
 
 class VarianceAdaptor(nn.Module):
-    def __init__(self, model_config):
+    def __init__(self, model_config, pitch_min, pitch_max, energy_min, energy_max):
         super().__init__()
 
         self.duration_predictor = PredictorBlock(model_config)
@@ -76,6 +76,11 @@ class VarianceAdaptor(nn.Module):
 
         self.pitch_embed = nn.Embedding(256, model_config.encoder_dim)
         self.energy_embed = nn.Embedding(256, model_config.encoder_dim)
+
+        self.pitch_min = pitch_min
+        self.pitch_max = pitch_max
+        self.energy_min = energy_min
+        self.energy_max = energy_max
     
     def LR(self, x, duration_predictor_output, mel_max_length=None):
         expand_max_len = torch.max(
@@ -109,12 +114,12 @@ class VarianceAdaptor(nn.Module):
             ).long().to(x.device)
 
         pitch = self.pitch_predictor(x) * pitch_alpha
-        buckets = torch.linspace(torch.log(pitch.min() + 1).item(), torch.log(pitch.max() + 1).item(), 256).to(x.device)
+        buckets = torch.linspace(torch.log(torch.tensor(self.pitch_min) + 1).item(), torch.log(torch.tensor(self.pitch_max) + 1).item(), 256).to(x.device)
         pitch_quantized = torch.bucketize(torch.log(pitch + 1), buckets[:-1]).to(x.device)
         
         energy = self.energy_predictor(x) * energy_alpha
-        buckets = torch.linspace(energy.min().item(), energy.max().item(), 256).to(x.device)
-        energy_quantized = torch.bucketize(torch.log(energy), buckets[:-1]).to(x.device)
+        buckets = torch.linspace(torch.tensor(self.energy_min), torch.tensor(self.energy_max), 256).to(x.device)
+        energy_quantized = torch.bucketize(energy, buckets[:-1]).to(x.device)
 
 
         out = self.pitch_embed(pitch_quantized) + self.energy_embed(energy_quantized) + x
@@ -122,13 +127,13 @@ class VarianceAdaptor(nn.Module):
 
 
 class FastSpeech2(nn.Module):
-    def __init__(self, model_config, mel_config):
+    def __init__(self, model_config, mel_config, pitch_min, pitch_max, energy_min, energy_max):
         super().__init__()
 
         self.encoder = Encoder(model_config)
         self.decoder = Decoder(model_config)
 
-        self.variance_adaptor = VarianceAdaptor(model_config)
+        self.variance_adaptor = VarianceAdaptor(model_config, pitch_min, pitch_max, energy_min, energy_max)
     
         self.mel_linear = nn.Linear(model_config.decoder_dim, mel_config.num_mels)
 

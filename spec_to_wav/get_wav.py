@@ -38,14 +38,14 @@ def get_data(train_config):
     return data_list
 
 
-def run_full_synthesis(checkpoint_path='checkpoint.pth.tar', logger=None):
+def run_full_synthesis(pitch_min, pitch_max, energy_min, energy_max, checkpoint_path='checkpoint.pth.tar', logger=None):
     train_config = TrainConfig()
     WaveGlow = utils.get_WaveGlow()
     WaveGlow = WaveGlow.to(train_config.device)
 
     model_config = FastSpeechConfig()
     mel_config = MelSpectrogramConfig()
-    model = FastSpeech2(model_config, mel_config)
+    model = FastSpeech2(model_config, mel_config, pitch_min, pitch_max, energy_min, energy_max)
     model.load_state_dict(torch.load(checkpoint_path, map_location='cuda:0')['model'])
     model = model.eval()
     model = model.to(train_config.device)

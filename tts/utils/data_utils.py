@@ -7,6 +7,7 @@ import numpy as np
 import pyworld
 import torchaudio
 from torchaudio.transforms import Spectrogram, MelScale
+from sklearn.preprocessing import StandardScaler
 
 from text import text_to_sequence
 
@@ -26,6 +27,9 @@ def get_data_to_buffer(train_config, melspec_config):
 
     wav_to_spec = Spectrogram(n_fft=1024, hop_length=256, power=1)
     spec_to_mels = MelScale(n_mels=melspec_config.num_mels, n_stft=1024 // 2 + 1, sample_rate=22050, f_min=0., f_max=8000, norm='slaney', mel_scale='slaney')
+
+    pitch_scaler = StandardScaler()
+    energy_scaler = StandardScaler()
 
     start = time.perf_counter()
     for i in tqdm(range(len(text))):
@@ -51,6 +55,9 @@ def get_data_to_buffer(train_config, melspec_config):
         character = torch.from_numpy(character)
         duration = torch.from_numpy(duration)
 
+        pitch_scaler.partial_fit(pitch.reshape(-1, 1))
+        energy_scaler.partial_fit(energy.numpy().reshape(-1, 1))
+
         buffer.append(
             {
                 "text": character, 
@@ -60,8 +67,26 @@ def get_data_to_buffer(train_config, melspec_config):
                 "mel_target": mel_spec
             }
         )
+    
+    pitch_min = float('+inf')
+    pitch_max = float('-inf')
+    energy_min = float('+inf')
+    energy_max = float('-inf')
+    buffer_new = []
+    for item in buffer:
+        pitch = item['pitch']
+        pitch_normalized = pitch_scaler.transform(pitch.numpy().reshape(-1, 1)).reshape(-1)
+        energy = item['energy']
+        energy_normalized = energy_scaler.transform(energy.numpy().reshape(-1, 1)).reshape(-1)
+        item['pitch'] = torch.from_numpy(pitch_normalized)
+        item['energy'] = torch.from_numpy(energy_normalized)
+        buffer_new.append(item)
+        pitch_min = min(pitch_min, pitch_normalized.min())
+        pitch_max = max(pitch_max, pitch_normalized.max())
+        energy_min = min(energy_min, energy_normalized.min())
+        energy_max = max(energy_max, energy_normalized.max())
 
     end = time.perf_counter()
     print("cost {:.2f}s to load all data into buffer.".format(end-start))
 
-    return buffer
+    return buffer_new, pitch_min, pitch_max, energy_min, energy_max
