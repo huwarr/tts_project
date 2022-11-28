@@ -14,7 +14,7 @@ from tts.collate_fn.collate import collate_fn
 from tts.model.fastspeech2 import FastSpeech2
 from tts.loss.fastspeech_loss import FastSpeechLoss
 from tts.logger.wandb_logger import WanDBWriter
-from spec_to_wav.get_wav import run_full_synthesis
+from get_wav import run_full_synthesis
 
 
 # fix seed for reproducibility

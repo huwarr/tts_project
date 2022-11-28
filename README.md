@@ -22,7 +22,7 @@ Run `setup.sh` script to download requirements and all the necessary files for s
 
 Run python file to synthesis audio samples using checkpoint:
 
-`python spec_to_wav/get_wav.py`
+`python get_wav.py`
 
 You can view samples in `results` folder :)
 
