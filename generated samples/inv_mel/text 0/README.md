@@ -1,4 +1,4 @@
-Audio, synthesised for *"A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest"* in different configurations.
+Audio, synthesised for ***"A defibrillator is a device that gives a high energy electric shock to the heart of someone who is in cardiac arrest"*** in different configurations.
 
 ### Structure
 
