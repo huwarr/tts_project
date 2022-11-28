@@ -3,6 +3,7 @@
 An attempt to implement and train `FastSpeech2`, vastly reusing implementation of `FastSpeech` from the seminar.
 
 [checkpoint](https://drive.google.com/file/d/1zTGB06g-cj9DiNsAqoje9cq5OVLBqU_u/view?usp=share_link)
+
 **synthesised audio:** in `generated samples` folder or [here](https://drive.google.com/drive/folders/1Iu8Yt7QHnnrsVLApXKrqYzSQtnHAwvMD?usp=share_link)
 
 ## Installation guide
