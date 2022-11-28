@@ -24,7 +24,9 @@ Run python file to synthesis audio samples using checkpoint:
 
 `python get_wav.py`
 
-You can view samples in `results` folder :)
+You might see several warnings, related to WaveGlow, but they will not affect success of this script's execution.
+
+When everything is done (it takes approximately 3 minutes), you can view samples in `results` folder :)
 
 ## Training
 
