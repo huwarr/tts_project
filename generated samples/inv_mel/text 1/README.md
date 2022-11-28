@@ -1,4 +1,4 @@
-Audio, synthesised for *"Massachusetts Institute of Technology may be best known for its math, science and engineering education"* in different configurations.
+Audio, synthesised for ***"Massachusetts Institute of Technology may be best known for its math, science and engineering education"*** in different configurations.
 
 ### Structure
 
