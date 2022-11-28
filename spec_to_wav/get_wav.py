@@ -38,7 +38,7 @@ def get_data(train_config):
     return data_list
 
 
-def run_full_synthesis(pitch_min, pitch_max, energy_min, energy_max, checkpoint_path='checkpoint.pth.tar', logger=None):
+def run_full_synthesis(pitch_min=-1e2, pitch_max=1e2, energy_min=-1e2, energy_max=1e2, checkpoint_path='checkpoint.pth.tar', logger=None):
     train_config = TrainConfig()
     WaveGlow = utils.get_WaveGlow()
     WaveGlow = WaveGlow.to(train_config.device)
@@ -150,3 +150,7 @@ def run_full_synthesis(pitch_min, pitch_max, energy_min, energy_max, checkpoint_
             if logger is not None:
                 wav, sr = torchaudio.load(path)
                 logger.add_audio(f"speed={alpha}_pitch={alpha}_energy={alpha}_{i}_waveglow", wav.float(), sample_rate=sr)
+
+
+if __name__ == '__main__':
+    run_full_synthesis()
